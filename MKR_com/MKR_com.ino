@@ -44,13 +44,6 @@ void loop()
   int counter=0;
   char str_current_stroke[8], str_current_load[8], str_fruit_length[8];
 
-  dtostrf(90.00, 4, 2, str_current_stroke);
-  dtostrf(78.02, 4, 2, str_current_load);
-  dtostrf(40.20, 4, 2, str_fruit_length);
-
-//  sprintf(data_print,"%s,%s,%ld,%s,",str_current_stroke, str_current_load, 1, str_fruit_length);
-//  Serial.print(data_print);   
-//  Serial.println("");
   sprintf(data_print,"s%ld,%ld,%ld,%ld,s%ld,%ld,%ld,%ld,s%ld,%ld,%ld,%ld,s%ld,%ld,%ld,%ld,s%ld,%ld,%ld,%ld,s%ld,%ld,%ld,%ld,s%ld,%ld,%ld,%ld,s%ld,%ld,%ld,%ld,s%ld,%ld,%ld,%ld,s%ld,%ld,%ld,%ld,s%ld,%ld,%ld,%ld,s%ld,%ld,%ld,%ld,s%ld,%ld,%ld,%ld,s%ld,%ld,%ld,%ld,s%ld,%ld,%ld,%ld,s%ld,%ld,%ld,%ld",1,tactile_sensX[0], tactile_sensY[0],tactile_sensZ[0],2,tactile_sensX[1], tactile_sensY[1],tactile_sensZ[1],3,tactile_sensX[2], tactile_sensY[2],tactile_sensZ[2],4,tactile_sensX[3], tactile_sensY[3],tactile_sensZ[3],5,tactile_sensX[4], tactile_sensY[4],tactile_sensZ[4],6,tactile_sensX[5], tactile_sensY[5],tactile_sensZ[5],7,tactile_sensX[6], tactile_sensY[6],tactile_sensZ[6],8,tactile_sensX[7], tactile_sensY[7],tactile_sensZ[7],9,tactile_sensX[8], tactile_sensY[8],tactile_sensZ[8],10,tactile_sensX[9], tactile_sensY[9],tactile_sensZ[9],11,tactile_sensX[10], tactile_sensY[10],tactile_sensZ[10],12,tactile_sensX[11], tactile_sensY[11],tactile_sensZ[11],13,tactile_sensX[12], tactile_sensY[12],tactile_sensZ[12],14,tactile_sensX[13], tactile_sensY[13],tactile_sensZ[13],15,tactile_sensX[14], tactile_sensY[14],tactile_sensZ[14],16,tactile_sensX[15], tactile_sensY[15],tactile_sensZ[15]);  
   str_msg.data = data_print;
   chatter.publish( &str_msg );
