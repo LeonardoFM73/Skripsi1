@@ -19,8 +19,8 @@
 #define DEGREE_COMPENSATION   90
 
 
-#define MIN_STROKE            3
-#define MAX_STROKE            75
+#define MIN_STROKE            5
+#define MAX_STROKE            77
 
 #define GUI_CONTROL           0
 #define KALIBRASI             1
@@ -41,6 +41,7 @@ int stateGripper = 0;
 byte stateData = 0;
 byte stateGrasp = READY;
 byte stateCollect = READY;
+byte collect_status = READY;
 bool running = false;
 
 #define THRESHOLD_GRASP_LENGTH  5
@@ -65,8 +66,12 @@ ros::NodeHandle  nh;
 
 char menu_data = '\0'; // Initialize menu_data globally
 char hello[13];
+char Status[13];
+char stateGripperStr[1]; // Ukuran array karakter untuk menampung string hasil konversi
+char stateCollectStr[1];
 char data_print[100];
 const char* msg_data;
+const char* sensor_data;
 
 DynamixelShield dxl;
 using namespace ControlTableItem;  //This namespace is required to use Control table item names
@@ -78,8 +83,15 @@ void messageCb( const std_msgs::String& menu_msg){
 }
 ros::Subscriber<std_msgs::String> sub("menu", messageCb );
 
-std_msgs::String str_msg;
-ros::Publisher data_servo("data_servo", &str_msg);
+//void callback_sensor( const std_msgs::String& data_msg){
+//    sensor_data = data_msg.data; // Use the data directly as a C-style string
+//}
+//ros::Subscriber<std_msgs::String> sub_sensor("sensor_value", callback_sensor );
+
+std_msgs::String str_msg,servo_value,collect;
+ros::Publisher Gripper("Gripper", &str_msg);
+ros::Publisher Status_collect("Status_collect", &str_msg);
+ros::Publisher data_servo("data_servo", &servo_value);
 
 void setup()
 {
@@ -89,6 +101,8 @@ void setup()
   nh.initNode();
   nh.subscribe(sub);
   nh.advertise(data_servo);
+  nh.advertise(Gripper);
+  nh.advertise(Status_collect);
   
   dxl.begin(57600);
   dxl.setPortProtocolVersion(DXL_PROTOCOL_VERSION);
@@ -109,10 +123,12 @@ void loop()
 //    str_buffer[1] = '\0'; // Null-terminate the string
 //
 //    str_msg.data = str_buffer; // Assign the C-style string to std_msgs::String
-//  str_msg.data = hello;
-  
-  str_msg.data = data_print;
-  data_servo.publish( &str_msg );
+  str_msg.data = hello;  
+  servo_value.data = data_print;
+  collect.data = Status;
+  data_servo.publish( &servo_value );
+  Gripper.publish(&str_msg);
+  Status_collect.publish(&collect);
   nh.spinOnce();
   gripper_control();
   if (strcmp(msg_data, "1") == 0) {
@@ -132,9 +148,11 @@ void loop()
         delay(500);
     }
     else if (strcmp(msg_data, "3") == 0) {
-      strcpy(hello, "hello world3"); // Copy the string literal into hello array
       stateGripper = COLLECT_DATASET;
-    } 
+    }
+    else if (strcmp(msg_data, "10") == 0) {
+      stateData = 10;
+    }  
 }
 
 void sending_data(float a,float b){
@@ -144,8 +162,18 @@ void sending_data(float a,float b){
   dtostrf(b, 4, 2, str_current_load);
   dtostrf(fruit_length, 4, 2, str_fruit_length);
   
-  sprintf(data_print,"%s,%s,%s",str_current_stroke,str_current_load,fruit_length);
+  sprintf(data_print,"%s,%s,%s",str_current_stroke,str_current_load,str_fruit_length);
 }
+
+void sending_gripper(int a){
+  sprintf(stateGripperStr, "%d", stateCollect);
+  strcpy(hello, stateGripperStr); // Copy the string literal into hello array
+}
+void status_collect(int a){
+  sprintf(stateCollectStr, "%d", collect_status);
+  strcpy(Status, stateCollectStr); // Copy the string literal into hello array
+}
+
 void gripper_init(){
   move_degree_gripper(CLOSE_MAX_POSITION + OFFSET_DEGREE_SENSOR + 5);
   delay(1000);
@@ -207,10 +235,13 @@ void gripper_control()
   gripper_load = torque_calculation(dxl.readControlTableItem(PRESENT_LOAD, DXL_ID));
   
   sending_data(gripper_stroke_length,gripper_load);
+  sending_gripper(stateCollect);
+  status_collect(collect_status);
   
   switch(stateGripper)
   {
     case GUI_CONTROL:
+//      move_stroke_gripper(MAX_STROKE);
       stateGrasp = READY;
       stateCollect = READY;
       period_count = 0;;
@@ -234,7 +265,6 @@ void gripper_control()
     break;
 
     case COLLECT_DATASET:
-//    move_degree_gripper(set_moving);
       collect_dataset(gripper_stroke_length, gripper_load);
     break;
 
@@ -261,7 +291,8 @@ void move_stroke_gripper(float stroke)
 void collect_dataset(float current_pos, float current_load)
 {
   const float moving_stroke = 0.2;
-  Serial2.println(stateCollect);
+
+  // Menggunakan sprintf() untuk mengonversi nilai stateGripper ke dalam string
   switch(stateCollect)
   {    
     case READY:
@@ -281,19 +312,21 @@ void collect_dataset(float current_pos, float current_load)
 
     case GRIPPER_CLOSING:
       float load;
-
+      load = current_load;
 //      if(check_z>185 or abs(check_x)>195 or abs(check_y)>195)
-      if(load < -0.35)
+      if(fabs(load) > 0.35)
       //if(current_pos < 50)
       {
         startMillis = millis();
         fruit_length = current_pos;
         stateCollect = SQUEEZING;
+        collect_status = FINISH;
       }
       else {
         target_stroke = current_stroke - moving_stroke;
         if(target_stroke<MIN_STROKE) {
-          stateCollect = FINISH;
+          stateCollect = RETURN_FRUIT;
+          collect_status = FINISH;
           delay(1000);
         }
         move_stroke_gripper(target_stroke);
@@ -314,7 +347,7 @@ void collect_dataset(float current_pos, float current_load)
       {
         target_stroke = current_stroke - moving_stroke/2;
         if(target_stroke<MIN_STROKE) {
-          stateCollect = FINISH;
+          stateCollect = RETURN_FRUIT;
           delay(1000);
         }
         move_stroke_gripper(target_stroke);
@@ -323,20 +356,13 @@ void collect_dataset(float current_pos, float current_load)
     break;
 
     case RETURN_FRUIT:
-      stateCollect = FINISH;
+      stateCollect = FINISH;  
+      collect_status = READY;
+      stateGripper = GUI_CONTROL;
+      stateData=12;
+      fruit_length=0;
+      
     break;
 
-    case FINISH:
-      period_count++;
-      if(period_count>50 && period_count<75){
-          move_stroke_gripper(MAX_STROKE);
-      }
-      else if(period_count>75){
-        period_count = 0;
-        stateCollect = READY;
-        stateGripper = GUI_CONTROL;
-        fruit_length = 0;
-        stateData = 12;
-      }
   }
 }
